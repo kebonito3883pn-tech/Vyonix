@@ -1,0 +1,196 @@
+-- Configuración
+getgenv().FruitFinderConfig = {
+    MythicFruits = {"Dragon", "Leopard", "Spirit", "Control", "Venom", "Dough", "Kitsune"},
+    LegendaryFruits = {"Phoenix", "Gravity", "Magma", "Portal", "Quake", "Rumble", "Paw", "Blizzard", "Love", "Diamond", "T-Rex"},
+    RefreshInterval = 30, -- Segundos entre actualizaciones automáticas
+    MaxServers = 20 -- Máximo de servidores a mostrar
+}
+
+-- Servicios
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local StarterGui = game:GetService("StarterGui")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- Crear GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "FruitFinderGUI"
+screenGui.Parent = game.CoreGui
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Parent = screenGui
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.BorderSizePixel = 0
+mainFrame.Position = UDim2.new(0.5, -250, 0.5, -200)
+mainFrame.Size = UDim2.new(0, 500, 0, 400)
+
+-- Hacer la GUI arrastrable
+local dragging = false
+local dragStart = nil
+local startPos = nil
+
+local function updateDrag(input)
+    local delta = input.Position - dragStart
+    mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+mainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        updateDrag(input)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+-- Título
+local title = Instance.new("TextLabel")
+title.Name = "Title"
+title.Parent = mainFrame
+title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+title.BorderSizePixel = 0
+title.Position = UDim2.new(0, 0, 0, 0)
+title.Size = UDim2.new(1, 0, 0, 40)
+title.Font = Enum.Font.SourceSansBold
+title.Text = "Buscador de Frutas Míticas"
+title.TextColor3 = Color3.fromRGB(255, 215, 0)
+title.TextScaled = true
+
+-- Botón de refrescar
+local refreshButton = Instance.new("TextButton")
+refreshButton.Name = "RefreshButton"
+refreshButton.Parent = mainFrame
+refreshButton.BackgroundColor3 = Color3.fromRGB(65, 65, 65)
+refreshButton.BorderSizePixel = 0
+refreshButton.Position = UDim2.new(0, 10, 0, 50)
+refreshButton.Size = UDim2.new(0, 100, 0, 30)
+refreshButton.Font = Enum.Font.SourceSans
+refreshButton.Text = "Actualizar"
+refreshButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+refreshButton.TextScaled = true
+
+-- Botón de auto-hop
+local autoHopButton = Instance.new("TextButton")
+autoHopButton.Name = "AutoHopButton"
+autoHopButton.Parent = mainFrame
+autoHopButton.BackgroundColor3 = Color3.fromRGB(65, 65, 65)
+autoHopButton.BorderSizePixel = 0
+autoHopButton.Position = UDim2.new(0, 120, 0, 50)
+autoHopButton.Size = UDim2.new(0, 100, 0, 30)
+autoHopButton.Font = Enum.Font.SourceSans
+autoHopButton.Text = "Auto-Hop: OFF"
+autoHopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+autoHopButton.TextScaled = true
+
+-- Lista de servidores
+local serverList = Instance.new("ScrollingFrame")
+serverList.Name = "ServerList"
+serverList.Parent = mainFrame
+serverList.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+serverList.BorderSizePixel = 0
+serverList.Position = UDim2.new(0, 10, 0, 90)
+serverList.Size = UDim2.new(1, -20, 1, -100)
+serverList.CanvasSize = UDim2.new(0, 0, 0, 0)
+serverList.ScrollBarThickness = 8
+
+-- Plantilla para elementos de servidor
+local serverEntryTemplate = Instance.new("Frame")
+serverEntryTemplate.Name = "ServerEntryTemplate"
+serverEntryTemplate.Parent = mainFrame
+serverEntryTemplate.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+serverEntryTemplate.BorderSizePixel = 0
+serverEntryTemplate.Size = UDim2.new(1, -10, 0, 50)
+serverEntryTemplate.Visible = false
+
+local serverName = Instance.new("TextLabel")
+serverName.Name = "ServerName"
+serverName.Parent = serverEntryTemplate
+serverName.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+serverName.BorderSizePixel = 0
+serverName.Position = UDim2.new(0, 10, 0, 5)
+serverName.Size = UDim2.new(0.5, -20, 0, 20)
+serverName.Font = Enum.Font.SourceSans
+serverName.Text = "Servidor"
+serverName.TextColor3 = Color3.fromRGB(255, 255, 255)
+serverName.TextScaled = true
+
+local fruitName = Instance.new("TextLabel")
+fruitName.Name = "FruitName"
+fruitName.Parent = serverEntryTemplate
+fruitName.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+fruitName.BorderSizePixel = 0
+fruitName.Position = UDim2.new(0.5, 10, 0, 5)
+fruitName.Size = UDim2.new(0.25, -10, 0, 20)
+fruitName.Font = Enum.Font.SourceSans
+fruitName.Text = "Fruta"
+fruitName.TextColor3 = Color3.fromRGB(255, 215, 0)
+fruitName.TextScaled = true
+
+local playerCount = Instance.new("TextLabel")
+playerCount.Name = "PlayerCount"
+playerCount.Parent = serverEntryTemplate
+playerCount.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+playerCount.BorderSizePixel = 0
+playerCount.Position = UDim2.new(0.75, 0, 0, 5)
+playerCount.Size = UDim2.new(0.25, -10, 0, 20)
+playerCount.Font = Enum.Font.SourceSans
+playerCount.Text = "Jugadores"
+playerCount.TextColor3 = Color3.fromRGB(255, 255, 255)
+playerCount.TextScaled = true
+
+local joinButton = Instance.new("TextButton")
+joinButton.Name = "JoinButton"
+joinButton.Parent = serverEntryTemplate
+joinButton.BackgroundColor3 = Color3.fromRGB(85, 170, 255)
+joinButton.BorderSizePixel = 0
+joinButton.Position = UDim2.new(0, 10, 0, 30)
+joinButton.Size = UDim2.new(0, 100, 0, 15)
+joinButton.Font = Enum.Font.SourceSans
+joinButton.Text = "Unirse"
+joinButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+joinButton.TextScaled = true
+
+local hopButton = Instance.new("TextButton")
+hopButton.Name = "HopButton"
+hopButton.Parent = serverEntryTemplate
+hopButton.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
+hopButton.BorderSizePixel = 0
+hopButton.Position = UDim2.new(0, 120, 0, 30)
+hopButton.Size = UDim2.new(0, 100, 0, 15)
+hopButton.Font = Enum.Font.SourceSans
+hopButton.Text = "Ir por la fruta"
+hopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+hopButton.TextScaled = true
+
+-- Variables
+local servers = {}
+local autoHopEnabled = false
+local autoHopConnection = nil
+
+-- Función para obtener servidores con frutas míticas
+local function getServersWithMythicFruits()
+    local servers = {}
+    local placeId = game.PlaceId
+    
+    -- Obtener lista de servidores
+    local url = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
+    local success, response = pcall(function()
+        return
